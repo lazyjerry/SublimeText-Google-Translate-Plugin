@@ -42,13 +42,13 @@ class GoTranslateCommand(sublime_plugin.TextCommand):
                     return                          
                 else:
                     result = translate.translate(selection, target_type)
-
+                   
                 v.replace(edit, region, result)
                 if not source_language:
                     detected = 'Auto'
                 else:
                     detected = source_language
-                sublime.status_message(u'Done! (translate '+detected+' --> '+target_language+')')
+                sublime.status_message(u'Done! Result is: '+ result +' from '+ selection.decode('utf-8') + ' (translate '+detected+' --> '+target_language+')')
 
 
     def is_visible(self):

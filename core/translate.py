@@ -4,6 +4,7 @@
 
 __version__ = "2.1.0"
 
+import json
 import sublime
 try:
     from urllib import urlopen, urlencode, quote
@@ -31,12 +32,7 @@ class GoogleTranslateException(Exception):
 
 
 class GoogleTranslate(object):
-    string_pattern = r"\"(([^\"\\]|\\.)*)\""
-    match_string =re.compile(
-                        r"\,?\[" 
-                           + string_pattern + r"\," 
-                           + string_pattern
-                        +r"\]")
+    
 
     error_codes = {
         501: "ERR_SERVICE_NOT_AVAIBLE_TRY_AGAIN_OR_USE_RPOXY",
@@ -49,7 +45,7 @@ class GoogleTranslate(object):
             'languages': None,
         }
         self.api_urls = {
-            'translate': 'https://translate.google.com/translate_a/single?client=t&ie=UTF-8&oe=UTF-8&dt=t',
+            'translate': 'https://clients5.google.com/translate_a/t?client=dict-chrome-ex',
         }
         if not source_lang:
             source_lang = 'auto'
@@ -78,24 +74,27 @@ class GoogleTranslate(object):
 
     def translate(self, text, format='html'):
         data = self._get_translation_from_google(text)
+        
+
         if (format == 'plain'):
             data = self.filter_tags(data)
         else:
-            data = self.fix_google(data)
+            data = self.fix_google(data)        
         return data
 
     def _get_translation_from_google(self, text):
         try:
-            json5 = self._get_json5_from_google(text).decode('utf-8')
+            json5 = self._get_json5_from_google(text)
+
         except IOError:
             raise GoogleTranslateException(self.error_codes[501])
         except ValueError:
             raise GoogleTranslateException(self.error_codes[503])
-        return self._unescape(self._get_translation_from_json5(json5.encode('utf-8')))
+        return self._unescape(self._get_translation_from_json5(json5))
 
     def _get_json5_from_google(self, text):
         escaped_source = quote(text, '')
-        headers = {'User-Agent':'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:23.0) Gecko/20100101 Firefox/23.0'}
+        headers = {'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.104 Safari/537.36'}
 
         if self.proxyok == 'yes':
             if self.proxytp == 'socks5':
@@ -105,13 +104,15 @@ class GoogleTranslate(object):
                     opener = build_opener(SocksiPyHandler(PROXY_TYPE_SOCKS4, self.proxyho, int(self.proxypo)))
                 else:
                     opener = build_opener(SocksiPyHandler(PROXY_TYPE_HTTP, self.proxyho, int(self.proxypo)))
-            req = Request(self.api_urls['translate']+"&sl=%s&tl=%s&text=%s" % (self.source, self.target, escaped_source), headers = headers)
+            req = Request(self.api_urls['translate']+"&sl=%s&tl=%s&q=%s" % (self.source, self.target, escaped_source), headers = headers)
             result = opener.open(req, timeout = 2).read()
             json = result
 
         else:
+
             try:
-                req = Request(self.api_urls['translate']+"&sl=%s&tl=%s&text=%s" % (self.source, self.target, escaped_source), headers = headers)
+                # client=dict-chrome-ex&sl=auto&tl=en&q=123
+                req = Request(self.api_urls['translate']+"&sl=%s&tl=%s&q=%s" % (self.source, self.target, escaped_source), headers = headers)
                 result = urlopen(req, timeout = 2).read()
                 json = result
             except IOError:
@@ -122,13 +123,8 @@ class GoogleTranslate(object):
 
     def _get_translation_from_json5(self, content):
         result = ""
-        pos = 2
-        while True:
-            m = self.match_string.match(content.decode('utf-8'), pos)
-            if not m:
-                break
-            result += m.group(1)
-            pos = m.end()
+        json_object = json.loads(content.decode('utf-8'))
+        result = json_object[0][0]
         return result
 
     def _unescape(self, text):
